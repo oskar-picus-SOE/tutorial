@@ -14,7 +14,7 @@ server.listen(port, () => {
 const clients = {};
 
 // A new client connection request received
-wsServer.on('connection', function (connection, request, client) {
+wsServer.on('connection', function (connection) {
     // Generate a unique code for every user
     const userId = uuidv4();
     console.log('Received a new connection');
@@ -30,16 +30,17 @@ wsServer.on('connection', function (connection, request, client) {
     // User disconnected
     connection.on('close', () => handleDisconnect(userId));
 
-    wsServer.on('message', function (data) {
-        console.log(`Received data ${data} from user ${client}`);
-        client[userId]["name"] = data;
+    connection.on('message', function (message) {
+        const name = JSON.parse(message);
+        console.log(`Received from ${userId} data ${name}`);
+        clients[userId].name = name;
 
         // Send the new user to the other clients
         Object.keys(clients)
             .filter(existingUserId => existingUserId !== userId)
             .filter(existingUserId => clients[existingUserId].connection.readyState === WebSocket.OPEN)
-            .forEach(existingUserId => clients[existingUserId].connection.send(newUserMessage()));
-    });
+            .forEach(existingUserId => clients[existingUserId].connection.send(JSON.stringify(newUserMessage(userId, name))));
+    })
 });
 
 function handleDisconnect(userId) {
@@ -48,7 +49,7 @@ function handleDisconnect(userId) {
 
     Object.keys(clients)
         .filter(existingUserId => clients[existingUserId].connection.readyState === WebSocket.OPEN)
-        .forEach(existingUserId => clients[existingUserId].connection.send(userDisconnectedMessage(userId)));
+        .forEach(existingUserId => clients[existingUserId].connection.send(JSON.stringify(userDisconnectedMessage(userId))));
 }
 
 const existingUsersMessage = () => ({
